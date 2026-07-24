@@ -4,17 +4,65 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-steps:
-- task: NodeTool@0
-  inputs:
-    versionSpec: '18.x'
-  displayName: 'Install Node.js'
+stages:
+- stage: BuildAndTest
+  displayName: 'Build and Test Stage'
+  jobs:
+  - job: Build
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '22.x' # Updated to match your Node 22-LTS requirement
+      displayName: 'Install Node.js'
 
-- script: |
-    npm install
-    npm run build --if-present
-  displayName: 'Install Dependencies & Build'
+    - script: |
+        npm install
+        npm run build --if-present
+      displayName: 'Install Dependencies'
 
-- script: |
-    npm test
-  displayName: 'Run Unit Tests'
+    - script: |
+        npm test
+      displayName: 'Run Unit Tests'
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive files'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        replaceExistingArchive: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifact'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
+
+- stage: Deploy
+  displayName: 'Deploy to Azure Stage'
+  dependsOn: BuildAndTest
+  condition: succeeded()
+  jobs:
+  - deployment: DeployWebApp # Changed from 'deploy:' to 'deployment:' to fix the syntax error
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'drop'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure Web App'
+            inputs:
+              azureSubscription: 'Azure-AppService-Connection'
+              appType: 'webAppLinux'
+              appName: 'linuxwebapp101'
+              package: '$(System.ArtifactsDirectory)/drop/$(Build.BuildId).zip'
+              runtimeStack: 'NODE|22-lts' # Updated runtime stack for the Azure App Service host
