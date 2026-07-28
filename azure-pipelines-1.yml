@@ -32,8 +32,8 @@ stages:
     - task: ArchiveFiles@2
       displayName: 'Archive Files into Zip'
       inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-        includeRootFolder: false
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/application' # <-- Ensure '/Application' is added here
+        includeRootFolder: false                                         # <-- Ensure this is strictly set to false
         archiveType: 'zip'
         archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
         replaceExistingArchive: true
