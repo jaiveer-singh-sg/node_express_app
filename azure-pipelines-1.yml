@@ -69,4 +69,6 @@ stages:
         appType: 'webAppLinux'
         appName: '$(webAppName)'
         package: '$(System.ArtifactsDirectory)/drop/$(Build.BuildId).zip'
-        startUpCommand: 'npm start' # Tells Azure Linux container how to boot your Node server
+        # REMOVE OR COMMENT OUT the startUpCommand line completely. 
+        # Azure App Service natively auto-detects 'npm start' inside your unpacked zip package.
+        
