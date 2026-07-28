@@ -1,0 +1,26 @@
+trigger:
+- master  # Change to 'main' if your repository branch is named main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+# Task 1: Basic Node.js validation (Verifies your agent environment)
+- task: NodeTool@0
+  inputs:
+    versionSpec: '18.x'
+  displayName: 'Verify Node.js Installation'
+
+# Task 2: Azure CLI Test (Verifies your cloud service connection)
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'Azure-FreeTier-Space' # <-- CHANGE THIS to your exact Service Connection Name
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "=== Testing Cloud Connectivity ==="
+      az account show --query "{SubscriptionName:name, SubscriptionID:id}" --output table
+      
+      echo "=== Listing Resource Groups in your Subscription ==="
+      az group list --output table
+  displayName: 'Test Azure Cloud Connection'
