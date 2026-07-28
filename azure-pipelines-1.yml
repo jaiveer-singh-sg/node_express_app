@@ -25,6 +25,7 @@ stages:
         npm install
         npm run build --if-present
         npm test --if-present
+      workingDirectory: '$(System.DefaultWorkingDirectory)/application' # <-- ADD THIS LINE (Change 'Application' to match your actual subfolder name if it differs)
       displayName: 'Install Dependencies & Run Tests'
 
     # Archive files into a production-ready deployment ZIP package
