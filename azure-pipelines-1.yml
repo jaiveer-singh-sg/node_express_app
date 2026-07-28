@@ -1,26 +1,71 @@
 trigger:
-- master  # Change to 'main' if your repository branch is named main
+- master
 
 pool:
   vmImage: 'ubuntu-latest'
 
-steps:
-# Task 1: Basic Node.js validation (Verifies your agent environment)
-- task: NodeTool@0
-  inputs:
-    versionSpec: '18.x'
-  displayName: 'Verify Node.js Installation'
+variables:
+  # Define your variables for reusability
+  serviceConnectionName: 'Azure-FreeTier-Space' # <-- Check that this matches your Service Connection name
+  webAppName: 'my-node-app'                     # <-- Your Azure Web App name
+  nodeVersion: '18.x'
 
-# Task 2: Azure CLI Test (Verifies your cloud service connection)
-- task: AzureCLI@2
-  inputs:
-    azureSubscription: 'Azure-FreeTier-Space' # <-- CHANGE THIS to your exact Service Connection Name
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      echo "=== Testing Cloud Connectivity ==="
-      az account show --query "{SubscriptionName:name, SubscriptionID:id}" --output table
-      
-      echo "=== Listing Resource Groups in your Subscription ==="
-      az group list --output table
-  displayName: 'Test Azure Cloud Connection'
+stages:
+- stage: Build
+  displayName: 'Build and Package Stage'
+  jobs:
+  - job: BuildJob
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '$(nodeVersion)'
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install
+        npm run build --if-present
+        npm test --if-present
+      displayName: 'Install Dependencies & Run Tests'
+
+    # Archive files into a production-ready deployment ZIP package
+    - task: ArchiveFiles@2
+      displayName: 'Archive Files into Zip'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        replaceExistingArchive: true
+
+    # Publish the ZIP package so the subsequent Deploy stage can access it
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
+
+- stage: Deploy
+  displayName: 'Deploy to Azure Stage'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: DeployJob
+    steps:
+    # Download the ZIP package built in the previous stage
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: 'drop'
+        downloadPath: '$(System.ArtifactsDirectory)'
+
+    # Deploy the code straight to your free-tier Azure App Service Web App
+    - task: AzureWebApp@1
+      displayName: 'Deploy Node.js Application to Azure'
+      inputs:
+        azureSubscription: '$(serviceConnectionName)'
+        appType: 'webAppLinux'
+        appName: '$(webAppName)'
+        package: '$(System.ArtifactsDirectory)/drop/$(Build.BuildId).zip'
+        startUpCommand: 'npm start' # Tells Azure Linux container how to boot your Node server
